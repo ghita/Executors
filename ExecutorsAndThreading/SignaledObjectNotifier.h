@@ -7,14 +7,39 @@
 
 using namespace std;
 
+// default implementation of wait_op
+// sends the notification by directly calling the callback
 template <class Handler>
 struct	wait_op {
     atomic<HANDLE>	wait_handle_;
-    Handler	handler_;
+    Handler	handler;
 
     explicit wait_op(Handler handler)
         : wait_handle_(0),
-        handler_(move(handler)) {
+        handler(move(handler)) {
+    }
+
+    void send_notification(error_code c) {
+        handler(c);
+    }
+};
+
+template <typename T>
+struct	wait_op <promise_handler<T>> {
+    atomic<HANDLE>	wait_handle_;
+    promise_handler<T>	handler;
+
+    explicit wait_op(promise_handler<T> handler)
+        : wait_handle_(0),
+        handler(move(handler)) {
+    }
+
+    void send_notification(error_code c) {
+        if( c.value() != 0) {
+            handler.p.set_exception(make_exception_ptr(std::exception("")));
+        } else {
+            handler.p.set_value();
+        }
     }
 };
 
@@ -30,7 +55,7 @@ void CALLBACK wait_callback(void* param, BOOLEAN timed_out) {
     const error_code	ec = timed_out
         ? make_error_code(errc::timed_out)
         : error_code();
-    op->handler_(ec);
+    op->send_notification(ec);
 };
 
 
@@ -59,7 +84,7 @@ async_result_t < handler_type_t<CompletionToken, void(error_code)> > {
         DWORD	last_error = GetLastError();
         const	error_code	ec(
             last_error, system_category());
-        op->handler_(ec);
+        op->send_notification(ec);
     }
 
     return	completion.result.get();

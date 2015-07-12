@@ -23,6 +23,16 @@ void wait_for_object_test() {
     ::CloseHandle(handle);
 }
 
+void wait_for_object_async_wait_future_test() {
+    HANDLE handle = ::CreateEvent(nullptr, FALSE, TRUE, nullptr);
+
+    std::future<void>  result = wait_for_object(handle, 0, 0, use_future_t{});
+    result.get();
+    std::cout << "Object signaled got future result\n";
+
+    ::CloseHandle(handle);
+}
+
 
 void generate_blocking_completion_test() {
     try {
@@ -34,7 +44,8 @@ void generate_blocking_completion_test() {
 
 
 int _tmain(int argc, _TCHAR* argv []) {
-    //wait_for_object_test();
+    wait_for_object_test();
+    wait_for_object_async_wait_future_test();
     generate_blocking_completion_test();
 }
 

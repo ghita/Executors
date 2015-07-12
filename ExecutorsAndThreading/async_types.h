@@ -1,5 +1,6 @@
 #pragma once
 #include <type_traits>
+#include <future>
 using namespace std;
 
 // default implementation when initiating function is  expected
@@ -37,6 +38,43 @@ struct	async_completion {
 
     handler_type	handler;
     async_result<handler_type>	result;
+};
+
+
+// async result specialization
+
+struct use_future_t {
+};
+
+template <typename T>
+struct promise_handler {
+    typedef T value_type;
+    promise<value_type> p;
+
+    promise_handler(use_future_t) {}
+    promise_handler(promise_handler&& other) : p(move(other.p)) {}
+};
+
+template <typename T>
+struct handler_type < use_future_t, T(error_code) > {
+    typedef promise_handler<T> type;
+};
+
+
+template <typename T>
+class async_result < promise_handler<T> > {
+public:
+    typedef future<T> type;
+
+    explicit async_result(promise_handler<T>& h) : f(h.p.get_future()) {
+    }
+
+    type get() {
+        return move(f);
+    }
+
+private:
+    future<T> f;
 };
 
 
