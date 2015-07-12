@@ -36,6 +36,9 @@
     <ClInclude Include="BlockingWaitForAsync.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="executor.h">
+      <Filter>threading</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

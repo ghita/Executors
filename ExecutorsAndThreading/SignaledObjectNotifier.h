@@ -4,38 +4,44 @@
 #include <memory>
 #include <system_error>
 #include "async_types.h"
+#include "executor.h"
 
 using namespace std;
 
 // default implementation of wait_op
 // sends the notification by directly calling the callback
-template <class Handler>
+template <typename Handler>
 struct	wait_op {
-    atomic<HANDLE>	wait_handle_;
+    atomic<HANDLE>	wait_handle;
     Handler	handler;
+    typedef decltype(get_executor(declval<Handler>())) Executor;
+    executor_work<Executor> work;
 
     explicit wait_op(Handler handler)
-        : wait_handle_(0),
-        handler(move(handler)) {
+        : wait_handle(0),
+        handler(move(handler)),
+        work(get_executor(handler)) {
     }
 
     void send_notification(error_code c) {
-        handler(c);
+        work.get_executor().dispatch([this, c]() {
+            handler(c);
+        });
     }
 };
 
 template <typename T>
-struct	wait_op <promise_handler<T>> {
-    atomic<HANDLE>	wait_handle_;
+struct	wait_op < promise_handler<T>> {
+    atomic<HANDLE>	wait_handle;
     promise_handler<T>	handler;
 
     explicit wait_op(promise_handler<T> handler)
-        : wait_handle_(0),
+        : wait_handle(0),
         handler(move(handler)) {
     }
 
     void send_notification(error_code c) {
-        if( c.value() != 0) {
+        if(c.value() != 0) {
             handler.p.set_exception(make_exception_ptr(std::exception("")));
         } else {
             handler.p.set_value();
@@ -49,7 +55,7 @@ void CALLBACK wait_callback(void* param, BOOLEAN timed_out) {
         static_cast<wait_op<Handler>*>(param));
 
     // wait until we can get access to handle
-    while(op->wait_handle_ == 0)
+    while(op->wait_handle == 0)
         SwitchToThread();
 
     const error_code	ec = timed_out
@@ -78,7 +84,7 @@ async_result_t < handler_type_t<CompletionToken, void(error_code)> > {
         flags | WT_EXECUTEONLYONCE)) {
 
         // we transfer ownership of handle to the wait_op
-        op->wait_handle_ = wait_handle;
+        op->wait_handle = wait_handle;
         op.release();
     } else {
         DWORD	last_error = GetLastError();
